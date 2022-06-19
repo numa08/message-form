@@ -58,8 +58,11 @@ class _FormScreenState extends State<FormScreen> {
     _showProgressDialog();
     final pref = await SharedPreferences.getInstance();
     await pref.setString('name', _nameController.text);
-    final imageUrl = await _uploadImage();
-    final messageData = <String, String>{
+    String? imageUrl;
+    if (imageFile != null) {
+      imageUrl = await _uploadImage();
+    }
+    final messageData = <String, String?>{
       'name': _nameController.text,
       'message': _messageController.text,
       'image': imageUrl,
