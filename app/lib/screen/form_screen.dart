@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:image_picker_for_web/image_picker_for_web.dart';
+import 'package:image_picker_platform_interface/image_picker_platform_interface.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class FormScreen extends StatefulWidget {
   const FormScreen({Key? key}) : super(key: key);
@@ -8,25 +11,97 @@ class FormScreen extends StatefulWidget {
 }
 
 class _FormScreenState extends State<FormScreen> {
+  final _formKey = GlobalKey<FormState>();
+  final _nameController = TextEditingController();
+  final _messageController = TextEditingController();
+  String? image;
+
+  @override
+  void initState() {
+    _loadName();
+    super.initState();
+  }
+
   @override
   Widget build(BuildContext context) {
     return _FormScreen(
+      formKey: _formKey,
+      nameController: _nameController,
+      messageController: _messageController,
+      image: image,
+      onPressPickImage: _pickImage,
       onPressSend: () async {
-        showDialog(
-          context: context,
-          builder: (context) => _completeSendDialog(context),
-        );
+        if (_formKey.currentState!.validate()) {
+          await _sendMessage();
+          showDialog(
+            context: context,
+            builder: (context) => _completeSendDialog(context),
+          );
+        }
       },
     );
+  }
+
+  Future<void> _loadName() async {
+    final pref = await SharedPreferences.getInstance();
+    final name = pref.getString('name');
+    if (name != null) {
+      _nameController.text = name;
+    }
+  }
+
+  Future<void> _sendMessage() async {
+    _showProgressDialog();
+    final pref = await SharedPreferences.getInstance();
+    await pref.setString('name', _nameController.text);
+    _messageController.text = '';
+    setState(() {
+      image = null;
+    });
+    await Future<void>.delayed(const Duration(seconds: 1));
+    if (mounted) {
+      Navigator.of(context).pop();
+    }
+  }
+
+  Future<void> _pickImage(ImageSource source) async {
+    final pickedFile = await ImagePickerPlugin().pickImage(source: source);
+    setState(() {
+      image = pickedFile.path;
+    });
+  }
+
+  void _showProgressDialog() {
+    showGeneralDialog(
+        context: context,
+        barrierDismissible: false,
+        transitionDuration: const Duration(milliseconds: 300),
+        barrierColor: Colors.black.withOpacity(0.5),
+        pageBuilder: (BuildContext context, Animation animation,
+            Animation secondaryAnimation) {
+          return const Center(
+            child: CircularProgressIndicator(),
+          );
+        });
   }
 }
 
 class _FormScreen extends StatelessWidget {
   const _FormScreen({
     Key? key,
+    required this.nameController,
+    required this.messageController,
+    required this.formKey,
+    this.image,
+    required this.onPressPickImage,
     required this.onPressSend,
   }) : super(key: key);
 
+  final TextEditingController nameController;
+  final TextEditingController messageController;
+  final GlobalKey<FormState> formKey;
+  final String? image;
+  final void Function(ImageSource source) onPressPickImage;
   final VoidCallback onPressSend;
 
   @override
@@ -43,6 +118,7 @@ class _FormScreen extends StatelessWidget {
       ),
       body: SafeArea(
         child: Form(
+          key: formKey,
           child: Padding(
             padding: const EdgeInsets.only(
               left: 8,
@@ -59,8 +135,18 @@ class _FormScreen extends StatelessWidget {
                 const Text('あなたのお名前（ニックネーム・ハンドルネームでも可能です）'),
                 TextFormField(
                   decoration: const InputDecoration(
-                    labelText: 'お名前',
+                    labelText: 'お名前（20文字以内）',
                   ),
+                  controller: nameController,
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'お名前を入力してください';
+                    }
+                    if (value.length > 20) {
+                      return 'お名前は20文字以内で入力してください';
+                    }
+                    return null;
+                  },
                 ),
                 const SizedBox(
                   height: 8,
@@ -70,7 +156,14 @@ class _FormScreen extends StatelessWidget {
                   decoration: const InputDecoration(
                     labelText: 'メッセージ',
                   ),
+                  controller: messageController,
                   maxLines: null,
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'メッセージを入力してください';
+                    }
+                    return null;
+                  },
                 ),
                 const SizedBox(
                   height: 8,
@@ -80,7 +173,9 @@ class _FormScreen extends StatelessWidget {
                   height: 4,
                 ),
                 ElevatedButton.icon(
-                  onPressed: () {},
+                  onPressed: () {
+                    onPressPickImage(ImageSource.camera);
+                  },
                   icon: const Icon(Icons.camera_alt),
                   label: const Text('写真を撮影'),
                 ),
@@ -88,10 +183,22 @@ class _FormScreen extends StatelessWidget {
                   height: 4,
                 ),
                 ElevatedButton.icon(
-                  onPressed: () {},
+                  onPressed: () {
+                    onPressPickImage(ImageSource.gallery);
+                  },
                   icon: const Icon(Icons.image),
                   label: const Text('写真を選択'),
                 ),
+                const SizedBox(
+                  height: 8,
+                ),
+                Builder(builder: (context) {
+                  if (image != null) {
+                    return Image.network(image!);
+                  } else {
+                    return Container();
+                  }
+                })
               ],
             ),
           ),
