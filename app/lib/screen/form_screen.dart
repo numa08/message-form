@@ -1,10 +1,14 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker_for_web/image_picker_for_web.dart';
 import 'package:image_picker_platform_interface/image_picker_platform_interface.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:uuid/uuid.dart';
 
 class FormScreen extends StatefulWidget {
   const FormScreen({Key? key}) : super(key: key);
+  final uuid = const Uuid();
 
   @override
   State<FormScreen> createState() => _FormScreenState();
@@ -14,7 +18,7 @@ class _FormScreenState extends State<FormScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _messageController = TextEditingController();
-  String? image;
+  PickedFile? imageFile;
 
   @override
   void initState() {
@@ -28,7 +32,7 @@ class _FormScreenState extends State<FormScreen> {
       formKey: _formKey,
       nameController: _nameController,
       messageController: _messageController,
-      image: image,
+      image: imageFile?.path,
       onPressPickImage: _pickImage,
       onPressSend: () async {
         if (_formKey.currentState!.validate()) {
@@ -54,11 +58,19 @@ class _FormScreenState extends State<FormScreen> {
     _showProgressDialog();
     final pref = await SharedPreferences.getInstance();
     await pref.setString('name', _nameController.text);
+    final imageUrl = await _uploadImage();
+    final messageData = <String, String>{
+      'name': _nameController.text,
+      'message': _messageController.text,
+      'image': imageUrl,
+    };
+    final database = FirebaseFirestore.instance;
+    await database.collection('messages').add(messageData);
+
     _messageController.text = '';
     setState(() {
-      image = null;
+      imageFile = null;
     });
-    await Future<void>.delayed(const Duration(seconds: 1));
     if (mounted) {
       Navigator.of(context).pop();
     }
@@ -67,8 +79,17 @@ class _FormScreenState extends State<FormScreen> {
   Future<void> _pickImage(ImageSource source) async {
     final pickedFile = await ImagePickerPlugin().pickImage(source: source);
     setState(() {
-      image = pickedFile.path;
+      imageFile = pickedFile;
     });
+  }
+
+  Future<String> _uploadImage() async {
+    assert(imageFile != null);
+    final storage = FirebaseStorage.instance;
+    final ref = storage.ref().child('images/${widget.uuid.v1()}');
+    final imageData = await imageFile!.readAsBytes();
+    await ref.putData(imageData);
+    return await ref.getDownloadURL();
   }
 
   void _showProgressDialog() {
