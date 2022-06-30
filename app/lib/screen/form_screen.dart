@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
@@ -5,6 +7,7 @@ import 'package:image_picker_for_web/image_picker_for_web.dart';
 import 'package:image_picker_platform_interface/image_picker_platform_interface.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
+import 'package:image/image.dart' hide Animation, Image;
 
 class FormScreen extends StatefulWidget {
   const FormScreen({Key? key}) : super(key: key);
@@ -62,10 +65,11 @@ class _FormScreenState extends State<FormScreen> {
     if (imageFile != null) {
       imageUrl = await _uploadImage();
     }
-    final messageData = <String, String?>{
+    final messageData = <String, dynamic>{
       'name': _nameController.text,
       'message': _messageController.text,
       'image': imageUrl,
+      'createdAt': FieldValue.serverTimestamp(),
     };
     final database = FirebaseFirestore.instance;
     await database.collection('messages').add(messageData);
@@ -89,9 +93,12 @@ class _FormScreenState extends State<FormScreen> {
   Future<String> _uploadImage() async {
     assert(imageFile != null);
     final storage = FirebaseStorage.instance;
-    final ref = storage.ref().child('images/${widget.uuid.v1()}');
+    final ref = storage.ref().child('images/${widget.uuid.v1()}.jpg');
     final imageData = await imageFile!.readAsBytes();
-    await ref.putData(imageData);
+    final rowImageByte = decodeImage(imageData)!;
+    final jpegData = Uint8List.fromList(encodeJpg(rowImageByte));
+    final metaData = SettableMetadata(contentType: 'image/jpeg');
+    await ref.putData(jpegData, metaData);
     return await ref.getDownloadURL();
   }
 
@@ -140,90 +147,92 @@ class _FormScreen extends StatelessWidget {
         },
         child: const Icon(Icons.send),
       ),
-      body: SafeArea(
-        child: Form(
-          key: formKey,
-          child: Padding(
-            padding: const EdgeInsets.only(
-              left: 8,
-              right: 8,
-              top: 8,
-            ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.start,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                const SizedBox(
-                  height: 4,
-                ),
-                const Text('あなたのお名前（ニックネーム・ハンドルネームでも可能です）'),
-                TextFormField(
-                  decoration: const InputDecoration(
-                    labelText: 'お名前（20文字以内）',
+      body: SingleChildScrollView(
+        child: SafeArea(
+          child: Form(
+            key: formKey,
+            child: Padding(
+              padding: const EdgeInsets.only(
+                left: 8,
+                right: 8,
+                top: 8,
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  const SizedBox(
+                    height: 4,
                   ),
-                  controller: nameController,
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'お名前を入力してください';
-                    }
-                    if (value.length > 20) {
-                      return 'お名前は20文字以内で入力してください';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(
-                  height: 8,
-                ),
-                const Text('新郎新婦に贈るメッセージや質問をどうぞ。披露宴の途中でご紹介します。'),
-                TextFormField(
-                  decoration: const InputDecoration(
-                    labelText: 'メッセージ',
+                  const Text('あなたのお名前（ニックネーム・ハンドルネームでも可能です）'),
+                  TextFormField(
+                    decoration: const InputDecoration(
+                      labelText: 'お名前（20文字以内）',
+                    ),
+                    controller: nameController,
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'お名前を入力してください';
+                      }
+                      if (value.length > 20) {
+                        return 'お名前は20文字以内で入力してください';
+                      }
+                      return null;
+                    },
                   ),
-                  controller: messageController,
-                  maxLines: null,
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'メッセージを入力してください';
+                  const SizedBox(
+                    height: 8,
+                  ),
+                  const Text('新郎新婦に贈るメッセージや質問をどうぞ。披露宴の途中でご紹介します。'),
+                  TextFormField(
+                    decoration: const InputDecoration(
+                      labelText: 'メッセージ',
+                    ),
+                    controller: messageController,
+                    maxLines: null,
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'メッセージを入力してください';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(
+                    height: 8,
+                  ),
+                  const Text('新郎・新婦との思い出の写真や式の様子をアップロードしてください。披露宴の途中で紹介します'),
+                  const SizedBox(
+                    height: 4,
+                  ),
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      onPressPickImage(ImageSource.camera);
+                    },
+                    icon: const Icon(Icons.camera_alt),
+                    label: const Text('写真を撮影'),
+                  ),
+                  const SizedBox(
+                    height: 4,
+                  ),
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      onPressPickImage(ImageSource.gallery);
+                    },
+                    icon: const Icon(Icons.image),
+                    label: const Text('写真を選択'),
+                  ),
+                  const SizedBox(
+                    height: 8,
+                  ),
+                  Builder(builder: (context) {
+                    if (image != null) {
+                      return Image.network(image!);
+                    } else {
+                      return Container();
                     }
-                    return null;
-                  },
-                ),
-                const SizedBox(
-                  height: 8,
-                ),
-                const Text('新郎・新婦との思い出の写真や式の様子をアップロードしてください。披露宴の途中で紹介します'),
-                const SizedBox(
-                  height: 4,
-                ),
-                ElevatedButton.icon(
-                  onPressed: () {
-                    onPressPickImage(ImageSource.camera);
-                  },
-                  icon: const Icon(Icons.camera_alt),
-                  label: const Text('写真を撮影'),
-                ),
-                const SizedBox(
-                  height: 4,
-                ),
-                ElevatedButton.icon(
-                  onPressed: () {
-                    onPressPickImage(ImageSource.gallery);
-                  },
-                  icon: const Icon(Icons.image),
-                  label: const Text('写真を選択'),
-                ),
-                const SizedBox(
-                  height: 8,
-                ),
-                Builder(builder: (context) {
-                  if (image != null) {
-                    return Image.network(image!);
-                  } else {
-                    return Container();
-                  }
-                })
-              ],
+                  })
+                ],
+              ),
             ),
           ),
         ),
