@@ -15,7 +15,7 @@ message_ref = db.collection(u'messages').order_by(
 
 def on_snapshot(collection_snapshot, changes, read_time):
     os.system('clear')
-    for doc in reversed(collection_snapshot):
+    for doc in collection_snapshot:
         print(f'\033[1m{doc.get("name")}\033[0m:\n{doc.get("message")}\n')
 
 
