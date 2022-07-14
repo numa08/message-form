@@ -3,20 +3,39 @@
     "rules": "firestore.rules",
     "indexes": "firestore.indexes.json"
   },
-  "hosting": {
-    "public": "app/build/web",
-    "ignore": [
-      "firebase.json",
-      "**/.*",
-      "**/node_modules/**"
-    ],
-    "rewrites": [
+  "hosting": [
       {
-        "source": "**",
-        "destination": "/index.html"
+        "target": "message_form",
+        "public": "app/build/web",
+        "ignore": [
+          "firebase.json",
+          "**/.*",
+          "**/node_modules/**"
+        ],
+        "rewrites": [
+          {
+            "source": "**",
+            "destination": "/index.html"
+          }
+        ]    
+      },
+      {
+        "target": "message_viewer",
+        "public": "viewer/build/web",
+        "ignore": [
+          "firebase.json",
+          "**/.*",
+          "**/node_modules/**"
+        ],
+        "rewrites": [
+          {
+            "source": "**",
+            "destination": "/index.html"
+          }
+        ]
       }
     ]
-  },
+  ,
   "storage": {
     "rules": "storage.rules"
   },

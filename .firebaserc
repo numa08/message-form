@@ -1,5 +1,14 @@
 {
   "projects": {
     "default": "message-form-78f18"
+  },
+  "targets": {
+    "message-form-78f18": {
+      "hosting": {
+        "message_viewer": [
+          "message-viewer-bb3ef"
+        ]
+      }
+    }
   }
 }
