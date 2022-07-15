@@ -7,6 +7,9 @@
       "hosting": {
         "message_viewer": [
           "message-viewer-bb3ef"
+        ],
+        "message_form": [
+          "message-form-78f18"
         ]
       }
     }
